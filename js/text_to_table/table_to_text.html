@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Зворотне перетворення таблиці</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    textarea { width: 100%; height: 150px; }
+    pre { border: 1px solid #333; padding: 10px; margin-top: 20px; white-space: pre-wrap; }
+    button { margin: 5px; padding: 8px 12px; }
+    .report { margin-top: 15px; font-weight: bold; }
+    .error { color: red; }
+    .success { color: green; }
+    .skipped { color: darkorange; margin-left: 20px; font-weight: normal; }
+  </style>
+</head>
+<body>
+  <h2>Вставте таблицю (скопійовану з Excel/Google Sheets):</h2>
+  <textarea id="inputData"></textarea><br>
+  <button onclick="processTable()">Перетворити</button>
+  <button onclick="copyText()">Скопіювати текст</button>
+  <button onclick="clearInput()">Очистити окошко</button>
+
+  <div id="message"></div>
+  <pre id="output"></pre>
+
+<script>
+function processTable() {
+  const text = document.getElementById('inputData').value.trim();
+  document.getElementById('message').innerHTML = "";
+  if (!text) return;
+
+  const lines = text.split(/\n/).filter(l => l.trim() !== "");
+  let result = "";
+  let processedCount = 0;
+  let skipped = [];
+
+  lines.forEach((line) => {
+    // заменяем все разделители (небуквенно-цифровые кроме пробела) на пробел
+    let cleaned = line.replace(/[^A-Za-zА-Яа-яЇїЄєІіҐґ0-9]+/g, " ").trim();
+    if (cleaned) {
+      result += cleaned + "\n";
+      processedCount++;
+    } else {
+      skipped.push({line, reason: "Порожній рядок після очищення"});
+    }
+  });
+
+  document.getElementById('output').textContent = result.trim();
+
+  // отчёт
+  let report = `<div class="report">Всього рядків: ${lines.length}. Успішно перетворено: <span class="success">${processedCount}</span>. Пропущено: <span class="error">${lines.length - processedCount}</span>.</div>`;
+  if (skipped.length > 0) {
+    report += "<div>Пропущені рядки:</div>";
+    skipped.forEach(s => {
+      report += `<div class="skipped">- "${s.line}" → ${s.reason}</div>`;
+    });
+  }
+  document.getElementById('message').innerHTML = report;
+}
+
+function copyText() {
+  const output = document.getElementById('output').textContent;
+  if (!output) return;
+  navigator.clipboard.writeText(output).then(() => {
+    alert("Текст скопійовано! Можна вставити у будь-який редактор.");
+  });
+}
+
+function clearInput() {
+  document.getElementById('inputData').value = "";
+  document.getElementById('output').textContent = "";
+  document.getElementById('message').innerHTML = "";
+}
+</script>
+</body>
+</html>

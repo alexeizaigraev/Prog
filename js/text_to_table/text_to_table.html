@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <title>Обробка масиву даних</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    textarea { width: 100%; height: 150px; }
+    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+    td { border: 1px solid #333; padding: 6px; text-align: left; }
+    button { margin: 5px; padding: 8px 12px; }
+    .report { margin-top: 15px; font-weight: bold; }
+    .error { color: red; }
+    .success { color: green; }
+    .skipped { color: darkorange; margin-left: 20px; font-weight: normal; }
+  </style>
+</head>
+<body>
+  <h2>Введіть масив даних:</h2>
+  <textarea id="inputData"></textarea><br>
+  <button onclick="processData()">Обробити</button>
+  <button onclick="copyTable()">Скопіювати в буфер обміну</button>
+  <button onclick="clearInput()">Очистити окошко</button>
+
+  <div id="message"></div>
+  <div id="output"></div>
+
+<script>
+function processData() {
+  const text = document.getElementById('inputData').value.trim();
+  document.getElementById('message').innerHTML = "";
+  if (!text) return;
+
+  const lines = text.split(/\n/).filter(l => l.trim() !== "");
+  let table = "<table>";
+  let processedCount = 0;
+  let skipped = [];
+
+  lines.forEach((line) => {
+    const match = line.match(/^(\d+)\.\s*(.+)$/);
+    if (!match) {
+      skipped.push({line, reason: "Немає правильного номера на початку"});
+      return;
+    }
+    const rest = match[2];
+
+    // Расширенное регулярное выражение для ПІБ
+    const pibMatch = rest.match(/([А-ЯЇЄІҐʼ’\-]+(?:\s+[А-ЯЇЄІҐ][а-яА-Яёіїєґʼ’\-]+){2})/u);
+    if (!pibMatch) {
+      skipped.push({line, reason: "Не знайдено ПІБ (три слова, починаючи з прізвища у верхньому регістрі)"});
+      return;
+    }
+
+    let pib = pibMatch[1];
+    const parts = rest.split(pib);
+    let rank = parts[0].trim();
+    let posada = parts[1].replace(/^,/, "").trim();
+
+    table += `<tr><td>${rank}</td><td>${pib}</td><td>${posada}</td></tr>`;
+    processedCount++;
+  });
+
+  table += "</table>";
+  document.getElementById('output').innerHTML = table;
+
+  // отчёт
+  let report = `<div class="report">Всього рядків: ${lines.length}. Успішно оброблено: <span class="success">${processedCount}</span>. Пропущено: <span class="error">${lines.length - processedCount}</span>.</div>`;
+  if (skipped.length > 0) {
+    report += "<div>Пропущені рядки:</div>";
+    skipped.forEach(s => {
+      report += `<div class="skipped">- "${s.line}" → ${s.reason}</div>`;
+    });
+  }
+  document.getElementById('message').innerHTML = report;
+}
+
+function copyTable() {
+  const table = document.querySelector("#output table");
+  if (!table) return;
+
+  let rows = [];
+  for (let tr of table.querySelectorAll("tr")) {
+    let cells = [];
+    for (let td of tr.querySelectorAll("td")) {
+      cells.push(td.innerText.trim());
+    }
+    rows.push(cells.join("\t")); // табуляция между колонками
+  }
+  const tsv = rows.join("\n");
+
+  navigator.clipboard.writeText(tsv).then(() => {
+    alert("Таблиця скопійована! Вставляйте прямо в Excel або Google Sheets.");
+  });
+}
+
+function clearInput() {
+  document.getElementById('inputData').value = "";
+  document.getElementById('output').innerHTML = "";
+  document.getElementById('message').innerHTML = "";
+}
+</script>
+</body>
+</html>

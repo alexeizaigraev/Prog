@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Обробка військових даних</title>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 20px auto; padding: 20px; background-color: #f9f9f9; }
+        textarea { width: 100%; height: 180px; margin-bottom: 10px; font-size: 14px; padding: 10px; box-sizing: border-box; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; }
+        button { padding: 10px 15px; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: #fff; transition: 0.2s; }
+        button:hover { background: #eee; }
+        #summary { font-weight: bold; margin-bottom: 5px; color: #222; }
+        #errors { color: #cc0000; font-size: 0.9em; margin-bottom: 15px; white-space: pre-wrap; }
+        #output { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 4px; word-wrap: break-word; min-height: 40px; }
+        .label { font-size: 0.8em; color: #666; text-transform: uppercase; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="label">Вхідні дані (Звання ПРІЗВИЩЕ Ім'я По батькові):</div>
+    <textarea id="inputData" placeholder="Старший солдат ПЕТРЕНКО Іван Петрович..."></textarea>
+
+    <div class="controls">
+        <button onclick="processData()">Обробити</button>
+        <button onclick="clearFields()">Очистити</button>
+        <button onclick="copyToClipboard()">Копіювати результат</button>
+    </div>
+
+    <div id="summary"></div>
+    <div id="errors"></div>
+    <div class="label">Результат:</div>
+    <div id="output"></div>
+
+<script>
+const rankMap = {
+    "рекрут": "рекр.",
+    "солдат": "солд.",
+    "старшийсолдат": "ст. солд.",
+    "молодшийсержант": "мол. с-т",
+    "сержант": "с-т",
+    "старшийсержант": "ст. с-т",
+    "головнийсержант": "гол. с-т",
+    "штабсержант": "шт.-с-т",
+    "майстерсержант": "м-с-т",
+    "старшиймайстерсержант": "ст. м-с-т",
+    "головниймайстерсержант": "гол. м-с-т",
+    "молодшийлейтенант": "мол. л-т",
+    "лейтенант": "л-т",
+    "старшийлейтенант": "ст. л-т",
+    "капітан": "кап.",
+    "майор": "майор",
+    "підполковник": "п/полк.",
+    "полковник": "полк.",
+    "бригаднийгенерал": "бриг. ген.",
+    "генералмайор": "ген.-май.",
+    "генераллейтенант": "ген.-лейт.",
+    "генерал": "ген."
+};
+
+function processData() {
+    const input = document.getElementById('inputData').value;
+    // Разбиваем на строки, убираем пустые
+    const lines = input.split(/\r?\n/).filter(l => l.trim() !== '');
+    
+    let results = [];
+    let errorLog = [];
+    let successCount = 0;
+
+    lines.forEach(line => {
+        // Заменяем одиночную кавычку на правильный апостроф и чистим лишние пробелы/табы
+        let cleanLine = line.replace(/'/g, '’').replace(/\s+/g, ' ').trim();
+        
+        const words = cleanLine.split(' ');
+        // Ищем индекс фамилии (полностью в верхнем регистре)
+        let lastNameIndex = words.findIndex(w => {
+            const cleanW = w.replace(/[’'–-]/g, ''); // для проверки только буквы
+            return cleanW === cleanW.toUpperCase() && cleanW.length > 1 && /[А-ЯЄІЇҐ]/.test(cleanW);
+        });
+
+        if (lastNameIndex === -1) {
+            errorLog.push(`Не розпізнано (відсутнє ПРІЗВИЩЕ): "${line}"`);
+            return;
+        }
+
+        // Звание
+        let rawRank = words.slice(0, lastNameIndex).join(' ');
+        let rankKey = rawRank.toLowerCase().replace(/[\s\-\t]/g, '');
+        let finalRank = rankMap[rankKey] || rawRank;
+
+        // ПІБ
+        let lastName = words[lastNameIndex];
+        let firstName = words[lastNameIndex + 1] || "";
+        let patronymic = words[lastNameIndex + 2] || "";
+
+        let initials = "";
+        if (firstName) initials += firstName[0] + ".";
+        if (patronymic) initials += patronymic[0] + ".";
+
+        // Формируем запись: "Звання ПРІЗВИЩЕ І.П."
+        results.push(`${finalRank} ${lastName} ${initials}`.trim());
+        successCount++;
+    });
+
+    // Вывод сводки
+    document.getElementById('summary').innerText = `Рядків отримано: ${lines.length} | Успішно: ${successCount}`;
+    document.getElementById('errors').innerText = errorLog.join('\n');
+    
+    // Вывод результата: всё одной строкой через запятую
+    document.getElementById('output').innerText = results.join(', ');
+}
+
+function clearFields() {
+    document.getElementById('inputData').value = '';
+    document.getElementById('output').innerText = '';
+    document.getElementById('summary').innerText = '';
+    document.getElementById('errors').innerText = '';
+}
+
+function copyToClipboard() {
+    const text = document.getElementById('output').innerText;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        alert("Результат скопійовано в буфер обміну!");
+    });
+}
+</script>
+</body>
+</html>
