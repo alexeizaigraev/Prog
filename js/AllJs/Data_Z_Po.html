@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Здравомыслие v13 — Всеядный Парсер</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; padding:18px; color:#111; background:#f6f8fb; }
+    h3 { margin-top:0; color: #0b69ff; }
+    #dropArea {
+      border:2px dashed #0b69ff; border-radius:8px; padding:20px;
+      min-height:90px; display:flex; align-items:center; justify-content:center;
+      background:#fff; color:#444; margin-bottom:8px; cursor: pointer;
+      font-weight: bold;
+    }
+    #dropArea:focus { background: #eef4ff; outline: none; border-color: #0044cc; }
+    .controls { margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    button { padding:10px 16px; border-radius:8px; border:1px solid transparent; cursor:pointer; font-weight:600; }
+    .btn-process { background: #0b69ff; color:#fff; }
+    .btn-copy { background: #10b981; color:#fff; }
+    .btn-clear { background: #ef4444; color:#fff; }
+    #out { margin-top:14px; overflow:auto; max-width:100%; border:1px solid #eee; background:#fff; border-radius:8px; }
+    table { border-collapse:collapse; width:100%; }
+    th, td { border:1px solid #ddd; padding:8px 10px; white-space:pre; vertical-align:top; font-size:13px; }
+    th { background:#f3f4f6; position:sticky; top:0; z-index: 10; }
+  </style>
+</head>
+<body>
+
+<h3>Здравомыслие v13 (Без пустых столбцов)</h3>
+
+<div id="dropArea" tabindex="0">Кликни сюда и вставь (Ctrl+V) данные</div>
+
+<div class="controls">
+  <label>Месяц: <select id="selMonth"></select></label>
+  <label>Год: <select id="selYear"></select></label>
+  <button id="processBtn" class="btn-process">ОБРАБОТАТЬ</button>
+  <button id="copyTsvBtn" class="btn-copy">КОПИРОВАТЬ</button>
+  <button id="clearBtn" class="btn-clear">ОЧИСТИТЬ</button>
+</div>
+
+<div id="status" style="margin-top:10px; font-weight:bold;"></div>
+<div id="out"></div>
+
+<script>
+const now = new Date();
+const selMonth = document.getElementById('selMonth');
+const selYear = document.getElementById('selYear');
+const status = document.getElementById('status');
+const outDiv = document.getElementById('out');
+
+for (let i=1;i<=12;i++){
+  const v = String(i).padStart(2,'0');
+  selMonth.add(new Option(v, v));
+}
+for (let y = now.getFullYear()-1; y <= now.getFullYear()+1; y++){
+  selYear.add(new Option(y, y));
+}
+selMonth.value = String(now.getMonth()+1).padStart(2,'0');
+selYear.value = now.getFullYear();
+
+function setStatus(t, color = '#333'){ status.textContent = t; status.style.color = color; }
+
+function parseTSV(str) {
+  const rows = [];
+  let currentRow = [];
+  let currentCell = '';
+  let inQuote = false;
+  str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    const nextChar = str[i+1];
+    if (inQuote) {
+      if (char === '"') {
+        if (nextChar === '"') { currentCell += '"'; i++; } else { inQuote = false; }
+      } else { currentCell += char; }
+    } else {
+      if (char === '"') { inQuote = true; } 
+      else if (char === '\t') { currentRow.push(currentCell); currentCell = ''; } 
+      else if (char === '\n') { currentRow.push(currentCell); rows.push(currentRow); currentRow = []; currentCell = ''; } 
+      else { currentCell += char; }
+    }
+  }
+  if (currentCell || currentRow.length > 0) { currentRow.push(currentCell); rows.push(currentRow); }
+  return rows;
+}
+
+function parseDates(text, ctx) {
+  const dates = [];
+  if (!text) return dates;
+  let cleanText = text.replace(/[^0-9.]/g, ' '); 
+  const re = /\b(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?\b/g;
+  let m;
+  while ((m = re.exec(cleanText)) !== null) {
+    let d = parseInt(m[1], 10);
+    let month = parseInt(m[2], 10);
+    let y = m[3] ? parseInt(m[3], 10) : (month > ctx.cur_month ? ctx.cur_year - 1 : ctx.cur_year);
+    if (y < 100) y += 2000;
+    if (month >=1 && month <= 12 && d >=1 && d <= 31) {
+      const dt = new Date(y, month - 1, d);
+      if (!isNaN(dt.getTime())) dates.push(dt);
+    }
+  }
+  return dates.sort((a,b) => a - b);
+}
+
+function fmtDate(d) {
+  return String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0') + '.' + d.getFullYear();
+}
+
+function processData() {
+  const matrix = window._sourceMatrix;
+  if (!matrix) return setStatus("Сначала вставь данные!", "red");
+
+  const m = parseInt(selMonth.value);
+  const y = parseInt(selYear.value);
+  const firstDay = new Date(y, m - 1, 1);
+  const lastDay = new Date(y, m, 0);
+  lastDay.setHours(23, 59, 59, 999); 
+  
+  const ctx = { cur_month: m, cur_year: y, first: firstDay, last: lastDay };
+  const rawHeader = matrix[0];
+  const keepIndices = [];
+  let vIdx = -1, oIdx = -1;
+
+  rawHeader.forEach((h, idx) => {
+    const head = String(h).toLowerCase().trim();
+    if (!(head.includes('посад') || head.includes('должно') || head.includes('зброя') || head.includes('оружие'))) {
+      keepIndices.push(idx);
+    }
+    if (head.includes('введ') || head.includes('внес')) vIdx = idx;
+    if (head.includes('вивед') || head.includes('вил')) oIdx = idx;
+  });
+
+  if (vIdx === -1 || oIdx === -1) return setStatus("Не найдены колонки дат!", "red");
+
+  let result = [ [...keepIndices.map(i => rawHeader[i]), "з", "по"] ];
+
+  for (let i = 1; i < matrix.length; i++) {
+    const row = matrix[i];
+    if (row.length === 0 || (row.length === 1 && !row[0])) continue;
+
+    const allV = parseDates(row[vIdx], ctx);
+    const allO = parseDates(row[oIdx], ctx);
+
+    const vMonth = allV.filter(d => d >= ctx.first && d <= ctx.last);
+    const oMonth = allO.filter(d => d >= ctx.first && d <= ctx.last);
+    const vPast = allV.filter(d => d < ctx.first);
+    const oPast = allO.filter(d => d < ctx.first);
+    const lastVPast = vPast.length ? new Date(Math.max(...vPast)) : null;
+    const lastOPast = oPast.length ? new Date(Math.max(...oPast)) : null;
+
+    let z_dates = [...vMonth];
+    let po_dates = [...oMonth];
+
+    if (lastVPast && (!lastOPast || lastVPast > lastOPast)) {
+      z_dates.push(ctx.first);
+    }
+
+    if (z_dates.length > 0 || po_dates.length > 0) {
+      z_dates.sort((a,b)=>a-b);
+      po_dates.sort((a,b)=>a-b);
+      const lastV = z_dates.length ? z_dates[z_dates.length - 1] : null;
+      const lastO = po_dates.length ? po_dates[po_dates.length - 1] : null;
+      if (lastV && (!lastO || lastV > lastO)) {
+        po_dates.push(ctx.last);
+      }
+      const z_str = Array.from(new Set(z_dates.map(d => fmtDate(d)))).sort((a,b) => {
+          const [d1, m1, y1] = a.split('.');
+          const [d2, m2, y2] = b.split('.');
+          return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+      }).join(' ');
+
+      const po_str = Array.from(new Set(po_dates.map(d => fmtDate(d)))).sort((a,b) => {
+          const [d1, m1, y1] = a.split('.');
+          const [d2, m2, y2] = b.split('.');
+          return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+      }).join(' ');
+
+      const outRow = keepIndices.map(idx => row[idx]);
+      outRow.push(z_str, po_str);
+      result.push(outRow);
+    }
+  }
+
+  // УДАЛЕНИЕ ПУСТЫХ СТОЛБЦОВ
+  if (result.length > 1) {
+    const colsToKeep = [];
+    const numCols = result[0].length;
+    for (let c = 0; c < numCols; c++) {
+      let hasData = false;
+      for (let r = 1; r < result.length; r++) {
+        if (result[r][c] && String(result[r][c]).trim() !== '') {
+          hasData = true;
+          break;
+        }
+      }
+      if (hasData) colsToKeep.push(c);
+    }
+    result = result.map(row => colsToKeep.map(cIdx => row[cIdx]));
+  }
+
+  window._resultMatrix = result;
+  render(result);
+  setStatus("Готово! Пустые столбцы удалены.", "green");
+}
+
+function render(matrix) {
+  let h = '<table>';
+  matrix.forEach((r, i) => {
+    h += '<tr>' + r.map(c => `<${i?'td':'th'}>${c||''}</${i?'td':'th'}>`).join('') + '</tr>';
+  });
+  outDiv.innerHTML = h + '</table>';
+}
+
+document.getElementById('dropArea').addEventListener('paste', e => {
+  e.preventDefault();
+  const text = e.clipboardData.getData('text/plain');
+  const rows = parseTSV(text);
+  window._sourceMatrix = rows.filter(r => r.length > 0 && r.some(c => c.trim() !== ''));
+  render(window._sourceMatrix);
+  setStatus("Данные загружены.");
+});
+
+document.getElementById('processBtn').onclick = processData;
+document.getElementById('copyTsvBtn').onclick = () => {
+  if (!window._resultMatrix) return;
+  const tsv = window._resultMatrix.map(r => {
+    return r.map(cell => {
+      let c = String(cell);
+      if (c.includes('\n') || c.includes('\t')) return '"' + c.replace(/"/g, '""') + '"';
+      return c;
+    }).join('\t');
+  }).join('\n');
+  navigator.clipboard.writeText(tsv).then(() => setStatus("Скопировано!"));
+};
+document.getElementById('clearBtn').onclick = () => { location.reload(); };
+</script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Центр управления таблицами</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f9; margin: 0; padding: 40px; color: #333; }
+    .header { text-align: center; margin-bottom: 50px; }
+    .header h1 { color: #0b69ff; font-size: 32px; margin-bottom: 10px; }
+    .header p { color: #666; font-size: 18px; }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 15px;
+      padding: 25px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      border: 1px solid #eef2f6;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 20px rgba(11, 105, 255, 0.1);
+      border-color: #0b69ff;
+    }
+
+    .icon { font-size: 40px; margin-bottom: 15px; }
+    .title { font-size: 19px; font-weight: 700; margin-bottom: 8px; color: #111; }
+    .desc { font-size: 14px; color: #666; line-height: 1.5; flex-grow: 1; }
+    
+    .btn-launch {
+      margin-top: 20px;
+      background: #f0f4ff;
+      color: #0b69ff;
+      text-align: center;
+      padding: 10px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .card:hover .btn-launch { background: #0b69ff; color: #fff; }
+
+    @media (max-width: 600px) { body { padding: 20px; } }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Инструменты Лёши</h1>
+  <p>Быстрая обработка данных и таблиц</p>
+</div>
+
+<div class="grid">
+  
+  <a href="Data_Z_Po.html" class="card">
+    <div class="icon">📅</div>
+    <div class="title">Считалка Дат (v10)</div>
+    <div class="desc">Тот самый парсер с "Здравомыслием". Считает периоды "з" и "по", чистит лишние колонки и подрезает даты под начало месяца.</div>
+    <div class="btn-launch">Открыть инструмент</div>
+  </a>
+
+  <a href="verify_2_tables_fio.html" class="card">
+    <div class="icon">⚖️</div>
+    <div class="title">Сравнение Таблиц ФИО</div>
+    <div class="desc">Сверяет два списка людей и находит расхождения. Помогает понять, кого добавили, а кого забыли.</div>
+    <div class="btn-launch">Открыть инструмент</div>
+  </a>
+
+  <a href="pib_ta_posada_to_rodovy.html" class="card">
+    <div class="icon">📝</div>
+    <div class="title">Именительный → Родительный</div>
+    <div class="desc">Автоматическое склонение ФИО и должностей для рапортов и приказов.</div>
+    <div class="btn-launch">Открыть инструмент</div>
+  </a>
+
+  <a href="zvannya_pib_sokr.html" class="card">
+    <div class="icon">✂️</div>
+    <div class="title">Сокращалка Звание-ФИО</div>
+    <div class="desc">Приводит полные звания и ФИО к краткому виду (например, "капитан Иванов И.И.").</div>
+    <div class="btn-launch">Открыть инструмент</div>
+  </a>
+
+  <a href="converter_familiy_2.html" class="card">
+    <div class="icon">🔄</div>
+    <div class="title">Конвертер Фамилий</div>
+    <div class="desc">Массовое изменение регистра или формата написания фамилий в списках.</div>
+    <div class="btn-launch">Открыть инструмент</div>
+  </a>
+
+  <a href="table_to_text.html" class="card">
+    <div class="icon">📄</div>
+    <div class="title">Таблица в Текст</div>
+    <div class="desc">Превращает структурированные табличные данные в читаемый текстовый список.</div>
+    <div class="btn-launch">Открыть инструмент</div>
+  </a>
+
+  <a href="text_to_table.html" class="card">
+    <div class="icon">📊</div>
+    <div class="title">Текст в Таблицу</div>
+    <div class="desc">Наоборот: берет сырой текст со списком и упаковывает его в ровные колонки таблицы.</div>
+    <div class="btn-launch">Открыть инструмент</div>
+  </a>
+
+</div>
+
+</body>
+</html>
