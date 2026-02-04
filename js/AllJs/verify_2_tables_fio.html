@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Сравнение списков ФИО</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f9f9f9;
+    color: #333;
+    margin: 20px;
+  }
+  h2 {
+    text-align: center;
+    color: #444;
+  }
+  textarea {
+    width: 100%;
+    height: 150px;
+    margin: 5px 0;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    resize: vertical;
+    background: #fff;
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+  }
+  .block {
+    width: 45%;
+  }
+  .controls {
+    text-align: center;
+    margin: 15px 0;
+  }
+  button {
+    margin: 5px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #fff;
+  }
+  button:hover { opacity: 0.9; }
+  .btn-blue { background: #3498db; }
+  .btn-green { background: #2ecc71; }
+  .btn-red { background: #e74c3c; }
+  .btn-orange { background: #e67e22; }
+  .btn-purple { background: #9b59b6; }
+  #summary {
+    text-align: center;
+    margin-top: 10px;
+    font-weight: bold;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<h2>Программа для сравнения списков ФИО</h2>
+<p style="text-align:center;">Введите два списка (А и Б) и выберите действие: показать разницу или собрать уникальный список. Внизу всегда видно количество строк.</p>
+
+<div class="row">
+  <div class="block">
+    <textarea id="inputA" placeholder="Список А"></textarea>
+    <button class="btn-blue" onclick="showBminusA()">Б минус А</button>
+  </div>
+  <div class="block">
+    <textarea id="inputB" placeholder="Список Б"></textarea>
+    <button class="btn-green" onclick="showAminusB()">А минус Б</button>
+  </div>
+</div>
+
+<div class="row">
+  <div class="block">
+    <textarea id="outputA" readonly placeholder="Результат под А"></textarea><br>
+    <button class="btn-orange" onclick="sortOutput('outputA')">Сортировать</button>
+    <button class="btn-purple" onclick="copyText('outputA')">Копировать</button>
+  </div>
+  <div class="block">
+    <textarea id="outputB" readonly placeholder="Результат под Б"></textarea><br>
+    <button class="btn-orange" onclick="sortOutput('outputB')">Сортировать</button>
+    <button class="btn-purple" onclick="copyText('outputB')">Копировать</button>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn-green" onclick="showUnique()">Собрать уникальный список</button>
+  <button class="btn-red" onclick="clearAll()">Очистить все</button>
+</div>
+
+<div id="summary"></div>
+
+<script>
+function normalize(str) {
+  return str.toLowerCase().replace(/[^а-щьюяґєіїa-z]/gi, '');
+}
+function getLines(id) {
+  return document.getElementById(id).value.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+}
+function updateSummary(extraText) {
+  const countA = getLines('inputA').length;
+  const countB = getLines('inputB').length;
+  document.getElementById('summary').innerHTML =
+    `Строк в А: ${countA}, строк в Б: ${countB}. ${extraText}`;
+}
+function showBminusA() {
+  const listA = getLines('inputA'), listB = getLines('inputB');
+  const normA = listA.map(normalize), normB = listB.map(normalize);
+  const onlyB = listB.filter((item, i) => !normA.includes(normB[i]));
+  document.getElementById('outputA').value = onlyB.join('\n');
+  updateSummary(`Б минус А: ${onlyB.length} строк`);
+}
+function showAminusB() {
+  const listA = getLines('inputA'), listB = getLines('inputB');
+  const normA = listA.map(normalize), normB = listB.map(normalize);
+  const onlyA = listA.filter((item, i) => !normB.includes(normA[i]));
+  document.getElementById('outputB').value = onlyA.join('\n');
+  updateSummary(`А минус Б: ${onlyA.length} строк`);
+}
+function showUnique() {
+  const listA = getLines('inputA'), listB = getLines('inputB');
+  const all = [...listA, ...listB], seen = new Set();
+  const unique = all.filter(item => {
+    const key = normalize(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  unique.sort((a, b) => a.localeCompare(b));
+  document.getElementById('outputA').value = unique.join('\n');
+  document.getElementById('outputB').value = '';
+  updateSummary(`Уникальный список: ${unique.length} строк`);
+}
+function sortOutput(id) {
+  const lines = getLines(id);
+  lines.sort((a, b) => a.localeCompare(b));
+  document.getElementById(id).value = lines.join('\n');
+}
+function copyText(id) {
+  navigator.clipboard.writeText(document.getElementById(id).value);
+}
+function clearAll() {
+  ['inputA','inputB','outputA','outputB'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('summary').innerHTML = '';
+  document.getElementById('inputA').focus();
+}
+</script>
+
+</body>
+</html>
