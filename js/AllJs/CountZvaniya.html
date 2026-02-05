@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Анализатор званий — Инструменты Лёши</title>
+  <style>
+    :root {
+      --bg-color: #f4f7f9;
+      --card-bg: #ffffff;
+      --text-main: #333;
+      --accent: #0b69ff;
+      --error: #ff4d4d;
+      --border: #eef2f6;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #121212;
+        --card-bg: #1e1e1e;
+        --text-main: #e0e0e0;
+        --accent: #4d94ff;
+        --border: #333;
+      }
+    }
+
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 800px; background: var(--card-bg); padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid var(--border); position: relative; }
+    
+    h1 { color: var(--accent); font-size: 24px; margin-top: 0; text-align: center; }
+    
+    /* Сводка с эффектом при наведении */
+    .summary-wrapper { position: relative; text-align: center; margin: 20px 0; }
+    .summary { 
+      display: inline-block; font-size: 26px; font-weight: bold; padding: 15px 30px; 
+      background: rgba(11, 105, 255, 0.1); border-radius: 12px; color: var(--accent); 
+      cursor: pointer; transition: all 0.2s; border: 2px dashed transparent;
+    }
+    .summary:hover { background: rgba(11, 105, 255, 0.2); border-color: var(--accent); transform: scale(1.02); }
+    .summary:active { transform: scale(0.98); }
+
+    /* Всплывашка "Скопировано" */
+    #copyToast {
+      position: absolute; top: -30px; left: 50%; transform: translateX(-50%);
+      background: var(--text-main); color: var(--card-bg); padding: 5px 12px;
+      border-radius: 5px; font-size: 12px; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+    }
+
+    textarea { width: 100%; height: 250px; padding: 15px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-color); color: var(--text-main); font-size: 14px; resize: vertical; box-sizing: border-box; outline: none; }
+    textarea:focus { border-color: var(--accent); }
+
+    .btn-clear { width: 100%; margin-top: 15px; padding: 12px; background: var(--error); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; opacity: 0.8; }
+    .btn-clear:hover { opacity: 1; }
+    
+    .error-box { margin-top: 25px; }
+    .error-title { font-size: 14px; font-weight: bold; color: var(--error); margin-bottom: 10px; display: none; }
+    .error-item { padding: 10px; background: rgba(255, 77, 77, 0.05); border-left: 4px solid var(--error); margin-bottom: 5px; font-size: 13px; font-family: monospace; }
+    
+    .back-link { display: inline-block; margin-bottom: 15px; color: var(--accent); text-decoration: none; font-size: 14px; }
+    .hint { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 5px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <a href="index.html" class="back-link">← Назад в меню</a>
+  <h1>Учёт званий</h1>
+
+  <div class="summary-wrapper">
+    <div id="copyToast">Скопировано!</div>
+    <div id="summary" class="summary" title="Нажми, чтобы скопировать">0 (0-0-0)</div>
+    <div class="hint">Нажми на результат, чтобы скопировать</div>
+  </div>
+
+  <textarea id="inputArea" placeholder="Вставь сюда текст со списками..."></textarea>
+  <button class="btn-clear" onclick="clearAll()">Очистить поле</button>
+
+  <div class="error-box">
+    <div id="errorTitle" class="error-title">Не удалось распознать звания в этих строках:</div>
+    <div id="errorLog"></div>
+  </div>
+</div>
+
+<script>
+  const inputArea = document.getElementById('inputArea');
+  const summaryBox = document.getElementById('summary');
+  const errorLog = document.getElementById('errorLog');
+  const errorTitle = document.getElementById('errorTitle');
+  const toast = document.getElementById('copyToast');
+
+  // Словари званий (интернациональные)
+  const ranks = {
+    soldiers: ["солдат", "старшийсолдат", "старшийсолдат"],
+    sergeants: [
+      "сержантськийістаршинськийсклад", "младшийсержант", "молодшийсержант", 
+      "сержант", "старшийсержант", "главныйсержант", "головнийсержант", 
+      "штабсержант", "мастерсержант", "майстерсержант", 
+      "старшиймастерсержант", "старшиймайстерсержант", 
+      "главныймастерсержант", "головниймайстерсержант"
+    ],
+    officers: [
+      "офицерскийсостав", "офіцерськийсклад", "младшийлейтенант", "молодшийлейтенант", 
+      "лейтенант", "старшийлейтенант", "капитан", "капітан", "майор", 
+      "подполковник", "підполковник", "полковник", "бригадныйгенерал", 
+      "бригаднийгенерал", "генералмайор", "генераллейтенант", "генерал"
+    ]
+  };
+
+  function cleanString(str) {
+    return str.toLowerCase().replace(/[^а-яёієґ]/g, '');
+  }
+
+  function processData() {
+    const text = inputArea.value;
+    const lines = text.split('\n').filter(line => line.trim() !== '');
+    
+    let cOff = 0, cSerg = 0, cSold = 0;
+    errorLog.innerHTML = '';
+
+    lines.forEach(line => {
+      const cleaned = cleanString(line);
+      let found = false;
+
+      const findRank = (arr) => {
+        const sorted = [...arr].sort((a,b) => b.length - a.length);
+        return sorted.some(r => cleaned.includes(r));
+      };
+
+      if (findRank(ranks.officers)) { cOff++; found = true; }
+      else if (findRank(ranks.sergeants)) { cSerg++; found = true; }
+      else if (findRank(ranks.soldiers)) { cSold++; found = true; }
+
+      if (!found) {
+        const item = document.createElement('div');
+        item.className = 'error-item';
+        item.innerText = line;
+        errorLog.appendChild(item);
+      }
+    });
+
+    const total = cOff + cSerg + cSold;
+    summaryBox.innerText = `${total} (${cOff}-${cSerg}-${cSold})`;
+    errorTitle.style.display = errorLog.children.length > 0 ? 'block' : 'none';
+  }
+
+  // Функция копирования
+  summaryBox.addEventListener('click', () => {
+    const textToCopy = summaryBox.innerText;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      toast.style.opacity = '1';
+      setTimeout(() => { toast.style.opacity = '0'; }, 1500);
+    });
+  });
+
+  function clearAll() {
+    inputArea.value = '';
+    processData();
+    inputArea.focus();
+  }
+
+  inputArea.addEventListener('input', processData);
+  window.onload = () => inputArea.focus();
+</script>
+
+</body>
+</html>
