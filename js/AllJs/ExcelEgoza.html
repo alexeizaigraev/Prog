@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>ExcelEgoza 2.2 — Точечный расчет</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary: #4361ee; --success: #10b981; --bg: #f8f9fa; --text: #2b2d42; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%); color: var(--text); min-height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .app-card { width: 100%; max-width: 1100px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 40px; border-radius: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.1); }
+        h1 { font-size: 28px; color: var(--primary); margin: 0; }
+        .upload-box { border: 2px dashed #d1d5db; padding: 25px; text-align: center; cursor: pointer; border-radius: 16px; background: #fff; margin-top: 20px; }
+        .upload-box:hover { border-color: var(--primary); background: rgba(67, 97, 238, 0.05); }
+        .file-item { display: flex; justify-content: space-between; background: #f1f5f9; padding: 8px 12px; border-radius: 8px; margin-top: 5px; font-size: 13px; }
+        .remove-file { color: #ef4444; cursor: pointer; font-weight: bold; }
+        .controls { display: flex; gap: 15px; margin-top: 30px; }
+        button { padding: 14px 24px; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; transition: all 0.2; flex: 1; }
+        .btn-run { background: var(--primary); color: white; flex: 2; }
+        .btn-clear { background: #f1f5f9; color: #64748b; }
+        .btn-download { background: var(--success); color: white; display: none; }
+        .table-container { margin-top: 30px; overflow-x: auto; border-radius: 12px; background: white; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #f8fafc; padding: 12px; text-align: center; color: #64748b; border-bottom: 2px solid #edf2f7; }
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: center; }
+        td:first-child { text-align: left; font-weight: 500; }
+        .sum-row { background: #fcfcfc; }
+        .empty-cell { color: #ccc; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div class="app-card">
+    <h1>ExcelEgoza 2.2</h1>
+    <p>Суммирование только по заданному списку. Структура отчета сохраняется.</p>
+    
+    <div class="upload-box" id="dropZone">
+        <b>Добавить файлы</b> (накопительный выбор)
+        <input type="file" id="fileInput" multiple accept=".xlsx, .xls" style="display:none">
+    </div>
+
+    <div id="fileNamesList"></div>
+
+    <div class="controls">
+        <button id="processBtn" class="btn-run" disabled>Сформировать отчет</button>
+        <button id="clearBtn" class="btn-clear">Очистить</button>
+        <button id="downloadBtn" class="btn-download">Скачать XLSX</button>
+    </div>
+    
+    <div class="table-container" id="tableContainer"></div>
+</div>
+
+<script>
+    // Твой список для подсчета (белый список)
+    const whiteListRaw = [
+        "відпутстка;", "відрядження;", "шпиталь (лікарня);", "хворі амбулаторно;", "беззворотні втрати;", 
+        "гауптвахта, полон, безвіті зниклі;", "СЗЧ.", "в/ч Т0330;", "в/ч Т0950", "в/ч Т0960", "в/ч Т0460", 
+        "в/ч Т0440", "РУБАК", "РЕБ", "МТЗ", "Інформаційно-комунікаційно вузол", "ОКП бригади", 
+        "1 батальйон охорони", "2 батальйон охорони", "3 батальйон охорони", "4 батальйон охорони", 
+        "5 батальйон охорони", "6 батальйон охорони", "- МПП", "- Єгоза", "- розчистка лісосмуги", 
+        "- піраміди загороджувльні ПЗ-1", "- розмітка МПП, рів", "- протитанковий рів", 
+        "- кулеметники(спостерігачі)-НВ", "-водії екскаваторники-навантажувачі", "- водії", 
+        "забезпечення фортифікаіційних робіт всього:", "- штаб", "- управління підрозділами", 
+        "-чергова служба", "- діловоди", "- зв'язок", "- відряджені до ДПУ", "- РЕБ", "- БпЛА", 
+        "- кухарі", "- ремонт техниці", "- заправники", "- ПЛПК", "- водії логістики", 
+        "- водії управління", "- охорона будинків", "- охорона бк", "- медичний персонал", 
+        "- Т0950", "- Т0460", "- склад розвантаження", "- мед. евакуація", "- облаштування будинків"
+    ];
+
+    const normalize = (str) => String(str).toLowerCase().replace(/[^a-zа-яё0-9]/gi, '').trim();
+    const whiteListNormalized = whiteListRaw.map(normalize);
+
+    let allFiles = [];
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const processBtn = document.getElementById('processBtn');
+    const tableContainer = document.getElementById('tableContainer');
+
+    dropZone.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => {
+        Array.from(e.target.files).forEach(nf => {
+            if (!allFiles.some(af => af.name === nf.name && af.size === nf.size)) allFiles.push(nf);
+        });
+        updateUI();
+    };
+
+    function updateUI() {
+        document.getElementById('fileNamesList').innerHTML = allFiles.map((f, i) => 
+            `<div class="file-item">${f.name} <span class="remove-file" onclick="removeF(${i})">✕</span></div>`).join('');
+        processBtn.disabled = allFiles.length === 0;
+    }
+
+    window.removeF = (i) => { allFiles.splice(i, 1); updateUI(); };
+    document.getElementById('clearBtn').onclick = () => { allFiles = []; updateUI(); tableContainer.innerHTML = ""; document.getElementById('downloadBtn').style.display="none"; };
+
+    processBtn.onclick = async () => {
+        let registry = {}; // Хранит суммы
+        let structure = []; // Хранит все строки по порядку из первого файла
+        let names = {};
+
+        for (let i = 0; i < allFiles.length; i++) {
+            const data = await allFiles[i].arrayBuffer();
+            const rows = XLSX.utils.sheet_to_json(XLSX.read(data).Sheets[XLSX.read(data).SheetNames[0]], { header: 1 });
+
+            rows.forEach((row, idx) => {
+                if (idx < 4 || !row[0]) return;
+                const rawTitle = String(row[0]).trim();
+                const norm = normalize(rawTitle);
+
+                // Если это первый файл, запоминаем структуру
+                if (i === 0) structure.push(norm);
+                if (!names[norm]) names[norm] = rawTitle;
+
+                if (whiteListNormalized.includes(norm)) {
+                    if (!registry[norm]) registry[norm] = { o: 0, s: 0, sol: 0 };
+                    registry[norm].o += parseInt(row[1]) || 0;
+                    registry[norm].s += parseInt(row[2]) || 0;
+                    registry[norm].sol += parseInt(row[3]) || 0;
+                }
+            });
+        }
+        render(registry, structure, names);
+    };
+
+    function render(reg, struct, names) {
+        let html = '<table><tr><th>Реестр учета</th><th>Офицеры</th><th>Сержанты</th><th>Солдаты</th><th>Всего</th></tr>';
+        let exportData = [["Реестр учета", "Офицеры", "Сержанты", "Солдаты", "Всего"]];
+
+        struct.forEach(key => {
+            const isCalc = reg[key];
+            const name = names[key];
+            const rowArr = [name, "", "", "", ""];
+
+            if (isCalc) {
+                const total = isCalc.o + isCalc.s + isCalc.sol;
+                rowArr[1] = isCalc.o; rowArr[2] = isCalc.s; rowArr[3] = isCalc.sol; rowArr[4] = total;
+                html += `<tr class="sum-row"><td>${name}</td><td>${isCalc.o}</td><td>${isCalc.s}</td><td>${isCalc.sol}</td><td><b>${total}</b></td></tr>`;
+            } else {
+                html += `<tr><td>${name}</td><td class="empty-cell">—</td><td class="empty-cell">—</td><td class="empty-cell">—</td><td class="empty-cell">—</td></tr>`;
+            }
+            exportData.push(rowArr);
+        });
+
+        tableContainer.innerHTML = html + '</table>';
+        const btn = document.getElementById('downloadBtn');
+        btn.style.display = 'block';
+        btn.onclick = () => {
+            const ws = XLSX.utils.aoa_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Свод");
+            XLSX.writeFile(wb, "Сводный_отчет.xlsx");
+        };
+    }
+</script>
+</body>
+</html>
